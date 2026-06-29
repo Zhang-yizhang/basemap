@@ -78,3 +78,13 @@ html, body {
 .el-tree-node.is-current > .el-tree-node__content {
   background: rgba(64, 150, 255, 0.12) !important;
 }
+
+/* 树形复选框通用样式 */
+.el-tree .el-checkbox {
+  height: auto !important;
+  margin-right: 6px !important;
+}
+
+.el-tree .el-tree-node__content {
+  padding-left: 0 !important;
+}

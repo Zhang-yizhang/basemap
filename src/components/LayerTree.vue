@@ -30,6 +30,10 @@
         default-expand-all
         :expand-on-click-node="true"
         :highlight-current="false"
+        show-checkbox
+        :default-checked-keys="defaultCheckedKeys"
+        :check-strictly="false"
+        @check="handleCheck"
       >
         <template #default="{ data }">
           <div class="tree-node">
@@ -64,23 +68,13 @@
             <!-- 标签 -->
             <span class="node-label">{{ data.label }}</span>
 
-            <!-- 可见性开关 -->
+            <!-- 可见性指示点 -->
             <span
               v-if="data.type !== 'group'"
-              class="visibility-toggle"
-              @click.stop="handleToggleVisibility(data)"
-              :title="data.visible ? '隐藏图层' : '显示图层'"
-            >
-              <svg v-if="data.visible" viewBox="0 0 16 16" width="14" height="14">
-                <circle cx="8" cy="8" r="3" fill="none" stroke="#4096FF" stroke-width="1" />
-                <circle cx="8" cy="8" r="1" fill="#4096FF" />
-                <path d="M1 8s3-6 7-6 7 6 7 6-3 6-7 6-7-6-7-6z" fill="none" stroke="#4096FF" stroke-width="0.6" opacity="0.4" />
-              </svg>
-              <svg v-else viewBox="0 0 16 16" width="14" height="14">
-                <path d="M1 8s3-6 7-6 7 6 7 6-3 6-7 6-7-6-7-6z" fill="none" stroke="#5a6a80" stroke-width="0.6" />
-                <line x1="3" y1="3" x2="13" y2="13" stroke="#5a6a80" stroke-width="1" />
-              </svg>
-            </span>
+              class="visibility-dot"
+              :class="{ active: data.visible }"
+              :title="data.visible ? '图层已显示' : '图层已隐藏'"
+            ></span>
           </div>
         </template>
       </el-tree>
@@ -109,13 +103,47 @@ const treeRef = ref(null)
 
 const treeProps = {
   children: 'children',
-  label: 'label'
+  label: 'label',
+  disabled: (data) => data.type === 'group'
 }
 
 const treeData = computed(() => mapStore.layerTree)
 
-function handleToggleVisibility(data) {
-  mapStore.toggleLayerVisibility(data.id)
+// 默认勾选的图层（初始 visible 为 true 的图层）
+const defaultCheckedKeys = computed(() => {
+  const keys = []
+  const traverse = (nodes) => {
+    for (const node of nodes) {
+      if (node.visible && node.type !== 'group') {
+        keys.push(node.id)
+      }
+      if (node.children) traverse(node.children)
+    }
+  }
+  traverse(mapStore.layerTree)
+  return keys
+})
+
+/**
+ * 复选框状态变更事件
+ * @param {Object} data - 选中状态变化的数据
+ * @param {Object} checkState - { checkedKeys, halfCheckedKeys }
+ */
+function handleCheck(data, checkState) {
+  const { checkedKeys } = checkState
+
+  // 遍历所有图层节点，更新可见性
+  const updateVisibility = (nodes) => {
+    for (const node of nodes) {
+      if (node.type !== 'group') {
+        const isChecked = checkedKeys.includes(node.id)
+        // 使用 setLayerVisibility 直接设置（不切换）
+        mapStore.setLayerVisibility(node.id, isChecked)
+      }
+      if (node.children) updateVisibility(node.children)
+    }
+  }
+  updateVisibility(mapStore.layerTree)
 }
 </script>
 
@@ -193,6 +221,7 @@ function handleToggleVisibility(data) {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  margin-left: 2px;
 }
 
 .node-label {
@@ -204,25 +233,20 @@ function handleToggleVisibility(data) {
   color: var(--text-secondary);
 }
 
-.visibility-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  cursor: pointer;
-  border-radius: 4px;
-  opacity: 0;
-  transition: opacity 0.15s;
+/* 可见性指示点（替代原来的眼睛图标） */
+.visibility-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #5a6a80;
   flex-shrink: 0;
+  margin-right: 4px;
+  transition: background 0.3s, box-shadow 0.3s;
 }
 
-.tree-node:hover .visibility-toggle {
-  opacity: 1;
-}
-
-.visibility-toggle:hover {
-  background: rgba(64, 150, 255, 0.12);
+.visibility-dot.active {
+  background: #4096FF;
+  box-shadow: 0 0 6px rgba(64, 150, 255, 0.6);
 }
 
 /* 折叠图标 */
@@ -249,5 +273,45 @@ function handleToggleVisibility(data) {
 .collapsed-icon:hover {
   color: var(--tech-blue-400);
   background: rgba(64, 150, 255, 0.1);
+}
+</style>
+
+<!-- 全局样式（非 scoped）用于覆盖 el-tree 复选框样式 -->
+<style>
+/* Element Plus 树形复选框 — 科技蓝主题定制 */
+.layer-tree-container .el-checkbox__inner {
+  background: rgba(13, 31, 60, 0.6) !important;
+  border-color: rgba(64, 150, 255, 0.35) !important;
+  width: 15px !important;
+  height: 15px !important;
+  border-radius: 3px !important;
+}
+
+.layer-tree-container .el-checkbox__input.is-checked .el-checkbox__inner {
+  background: #4096FF !important;
+  border-color: #4096FF !important;
+}
+
+.layer-tree-container .el-checkbox__input.is-checked .el-checkbox__inner::after {
+  border-color: #fff !important;
+}
+
+.layer-tree-container .el-checkbox__input.is-indeterminate .el-checkbox__inner {
+  background: #4096FF !important;
+  border-color: #4096FF !important;
+}
+
+.layer-tree-container .el-checkbox__input.is-indeterminate .el-checkbox__inner::before {
+  background: #fff !important;
+}
+
+/* 分组节点的复选框隐藏 */
+.layer-tree-container .el-tree-node[aria-level="1"] > .el-tree-node__content > .el-checkbox {
+  display: none !important;
+}
+
+/* 复选框与内容的间距 */
+.layer-tree-container .el-tree-node__content {
+  gap: 0 !important;
 }
 </style>

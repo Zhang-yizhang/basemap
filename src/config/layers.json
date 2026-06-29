@@ -1,0 +1,81 @@
+{
+  "groups": [
+    { "id": "base", "label": "底图图层", "expanded": true },
+    { "id": "overlay", "label": "覆盖图层", "expanded": true },
+    { "id": "terrain", "label": "地形图层", "expanded": false }
+  ],
+  "layers": [
+    {
+      "id": "osm",
+      "label": "OpenStreetMap",
+      "name": "osm",
+      "url": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      "group": "base",
+      "type": "base",
+      "visible": false
+    },
+    {
+      "id": "tianditu_vec",
+      "label": "天地图矢量",
+      "name": "tianditu_vec",
+      "url": "https://t{0-7}.tianditu.gov.cn/DataServer?T=vec_w&x={x}&y={y}&l={z}&tk=fa7ec9766b2c00747e3dd60ab3d05892",
+      "group": "base",
+      "type": "base",
+      "visible": false
+    },
+    {
+      "id": "tianditu_img",
+      "label": "天地图影像",
+      "name": "tianditu_img",
+      "url": "https://t{0-7}.tianditu.gov.cn/DataServer?T=img_w&x={x}&y={y}&l={z}&tk=fa7ec9766b2c00747e3dd60ab3d05892",
+      "group": "base",
+      "type": "base",
+      "visible": true
+    },
+    {
+      "id": "arcgis",
+      "label": "ArcGIS 卫星图",
+      "name": "arcgis",
+      "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      "group": "base",
+      "type": "base",
+      "visible": false
+    },
+    {
+      "id": "boundary",
+      "label": "行政区划",
+      "name": "boundary",
+      "url": "",
+      "group": "overlay",
+      "type": "overlay",
+      "visible": false
+    },
+    {
+      "id": "poi",
+      "label": "兴趣点",
+      "name": "poi",
+      "url": "",
+      "group": "overlay",
+      "type": "overlay",
+      "visible": false
+    },
+    {
+      "id": "terrain_cesium",
+      "label": "Cesium 地形",
+      "name": "terrain_cesium",
+      "url": "",
+      "group": "terrain",
+      "type": "terrain",
+      "visible": false
+    },
+    {
+      "id": "hillshade",
+      "label": "山体阴影",
+      "name": "hillshade",
+      "url": "",
+      "group": "terrain",
+      "type": "terrain",
+      "visible": false
+    }
+  ]
+}

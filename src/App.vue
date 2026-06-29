@@ -25,6 +25,23 @@
         <h1 class="header-title">在线底图服务系统</h1>
       </div>
       <div class="header-right">
+        <!-- 定位按钮 -->
+        <div
+          class="locate-btn"
+          :class="{ locating: mapStore.locateStatus === 'locating' }"
+          @click="handleLocate"
+          title="定位到当前位置"
+        >
+          <svg viewBox="0 0 16 16" width="14" height="14">
+            <circle cx="8" cy="8" r="2" fill="none" :stroke="mapStore.locateStatus === 'success' ? '#52c41a' : '#4096FF'" stroke-width="1.5" />
+            <circle cx="8" cy="8" r="5" fill="none" stroke="#4096FF" stroke-width="0.8" opacity="0.4" />
+            <line x1="8" y1="1" x2="8" y2="3" stroke="#4096FF" stroke-width="1.2" />
+            <line x1="8" y1="13" x2="8" y2="15" stroke="#4096FF" stroke-width="1.2" />
+            <line x1="1" y1="8" x2="3" y2="8" stroke="#4096FF" stroke-width="1.2" />
+            <line x1="13" y1="8" x2="15" y2="8" stroke="#4096FF" stroke-width="1.2" />
+          </svg>
+        </div>
+
         <span class="mode-badge" :class="mapStore.mapMode">
           {{ mapStore.mapMode === '2d' ? '二维模式' : '三维模式' }}
         </span>
@@ -53,6 +70,13 @@
           <div v-if="isLoading" class="map-loading">
             <div class="loading-spinner"></div>
             <p>地图加载中...</p>
+          </div>
+        </Transition>
+
+        <!-- 定位提示 -->
+        <Transition name="fade">
+          <div v-if="locateMsg" class="locate-toast">
+            {{ locateMsg }}
           </div>
         </Transition>
 
@@ -102,19 +126,41 @@ import LayerTree from './components/LayerTree.vue'
 import MapToggle from './components/MapToggle.vue'
 
 const mapStore = useMapStore()
-const { initMap, switchBaseMap: switch2DBase, getCenter, getZoom, setView, destroyMap } = useMap2D()
+const { initMap, switchBaseMap: switch2DBase, setLayerVisible, getCenter, getZoom, setView, flyToLocation, destroyMap } = useMap2D()
 const { initViewer, getCenter: get3DCenter, getApproximateZoom, flyTo, destroyViewer } = useMap3D()
 
 const map2dRef = ref(null)
 const map3dRef = ref(null)
 const isLoading = ref(false)
 const coordText = ref('104.00°E, 35.00°N')
+const locateMsg = ref('')
 
 let map2d = null
 let viewer3d = null
-let coordWatchHandle = null
 
-// 初始化二维地图
+// ==================== 定位功能 ====================
+
+async function handleLocate() {
+  try {
+    locateMsg.value = '正在获取位置...'
+    const pos = await mapStore.getCurrentLocation()
+
+    if (map2d && mapStore.mapMode === '2d') {
+      flyToLocation(map2d, [pos.lng, pos.lat], 14, 2000)
+    } else if (viewer3d && mapStore.mapMode === '3d') {
+      flyTo(viewer3d, [pos.lng, pos.lat], 14)
+    }
+
+    locateMsg.value = '已定位到当前位置'
+    setTimeout(() => { locateMsg.value = '' }, 2500)
+  } catch (err) {
+    locateMsg.value = `定位失败：${err.message || '未知错误'}`
+    setTimeout(() => { locateMsg.value = '' }, 3000)
+  }
+}
+
+// ==================== 初始化二维地图 ====================
+
 async function init2DMap() {
   if (!map2dRef.value) return
   await nextTick()
@@ -134,7 +180,8 @@ async function init2DMap() {
   })
 }
 
-// 初始化三维地图
+// ==================== 初始化三维地图 ====================
+
 async function init3DMap() {
   if (!map3dRef.value) return
   await nextTick()
@@ -153,15 +200,18 @@ async function init3DMap() {
   })
 }
 
+// ==================== 辅助函数 ====================
+
 function updateCoordDisplay(center) {
-  const lng = center[0].toFixed(2)
-  const lat = center[1].toFixed(2)
+  const lng = center[0].toFixed(4)
+  const lat = center[1].toFixed(4)
   const lngDir = lng >= 0 ? 'E' : 'W'
   const latDir = lat >= 0 ? 'N' : 'S'
   coordText.value = `${Math.abs(lng)}°${lngDir}, ${Math.abs(lat)}°${latDir}`
 }
 
-// 切换底图
+// ==================== 底图切换 ====================
+
 function switchBaseMap(mapId) {
   mapStore.setActiveBaseMap(mapId)
   if (map2d) {
@@ -169,21 +219,20 @@ function switchBaseMap(mapId) {
   }
 }
 
-// 切换 2D/3D
+// ==================== 2D/3D 切换 ====================
+
 async function handleMapToggle() {
   isLoading.value = true
   const prevMode = mapStore.mapMode
 
   try {
     if (prevMode === '2d') {
-      // 切换到 3D
       mapStore.setMapMode('3d')
       await nextTick()
 
       if (!viewer3d) {
         await init3DMap()
       } else {
-        // 同步视角
         if (map2d) {
           const center = getCenter(map2d)
           const zoom = getZoom(map2d)
@@ -191,20 +240,17 @@ async function handleMapToggle() {
         }
       }
 
-      // 销毁 2D 地图（节约资源）
       if (map2d) {
         destroyMap(map2d)
         map2d = null
       }
     } else {
-      // 切换到 2D
       mapStore.setMapMode('2d')
       await nextTick()
 
       if (!map2d) {
         await init2DMap()
       } else {
-        // 同步视角
         if (viewer3d) {
           const center = get3DCenter(viewer3d)
           const zoom = getApproximateZoom(viewer3d)
@@ -212,7 +258,6 @@ async function handleMapToggle() {
         }
       }
 
-      // 销毁 3D 地球（节约资源）
       if (viewer3d) {
         destroyViewer(viewer3d)
         viewer3d = null
@@ -228,21 +273,52 @@ async function handleMapToggle() {
   }
 }
 
-// 直接模式切换（MapToggle 单选）
 function handleModeChange(mode) {
   if (mode !== mapStore.mapMode) {
     handleMapToggle()
   }
 }
 
-// 监听图层可见性变化（底图切换）
+// ==================== 图层可见性与地图联动 ====================
+
+// 监听图层树变化，同步到地图图层显隐
 watch(() => mapStore.layerTree, () => {
-  // 可在此处扩展图层显隐逻辑
+  if (!map2d) return
+  const traverse = (nodes) => {
+    for (const node of nodes) {
+      if (node.type !== 'group' && node.visible !== undefined) {
+        // 仅处理底图类型的图层（overlay/terrain 暂未实现实际数据源）
+        if (node.type === 'base' || node.id.startsWith('tianditu') || node.id === 'osm' || node.id === 'arcgis') {
+          setLayerVisible(map2d, node.id, node.visible)
+        }
+      }
+      if (node.children) traverse(node.children)
+    }
+  }
+  traverse(mapStore.layerTree)
 }, { deep: true })
+
+// ==================== 生命周期 ====================
 
 onMounted(async () => {
   await nextTick()
   await init2DMap()
+
+  // 自动定位并飞至当前位置
+  try {
+    locateMsg.value = '正在获取位置...'
+    const pos = await mapStore.getCurrentLocation()
+    await nextTick()
+    if (map2d) {
+      // 首次加载用飞行动画定位到用户位置
+      flyToLocation(map2d, [pos.lng, pos.lat], 14, 2200)
+    }
+    locateMsg.value = '已定位到当前位置'
+    setTimeout(() => { locateMsg.value = '' }, 2500)
+  } catch (err) {
+    console.warn('自动定位失败，使用默认中心:', err.message)
+    locateMsg.value = ''
+  }
 })
 
 onUnmounted(() => {
@@ -299,6 +375,31 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 16px;
+}
+
+/* 定位按钮 */
+.locate-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid rgba(64, 150, 255, 0.2);
+}
+.locate-btn:hover {
+  background: rgba(64, 150, 255, 0.12);
+  border-color: rgba(64, 150, 255, 0.35);
+}
+.locate-btn.locating {
+  animation: locate-pulse 1s ease-in-out infinite;
+}
+
+@keyframes locate-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
 .mode-badge {
@@ -382,6 +483,23 @@ onUnmounted(() => {
   color: var(--text-secondary);
   font-size: 14px;
   letter-spacing: 1px;
+}
+
+/* ===== 定位提示 Toast ===== */
+.locate-toast {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 20px;
+  background: rgba(13, 31, 60, 0.92);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(64, 150, 255, 0.25);
+  border-radius: 8px;
+  color: var(--tech-blue-300);
+  font-size: 13px;
+  z-index: 100;
+  letter-spacing: 0.5px;
 }
 
 /* ===== 过渡动画 ===== */
