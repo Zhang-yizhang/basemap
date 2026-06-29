@@ -1,1 +1,28 @@
-node_modules
+# 依赖目录
+node_modules/
+
+# 环境变量文件
+.env
+.env.local
+.env.*.local
+
+# 日志文件
+logs/
+*.log
+npm-debug.log*
+
+# 构建产物（根据打包工具调整）
+dist/
+build/
+.next/
+out/
+
+# 操作系统隐藏文件
+.DS_Store
+Thumbs.db
+
+# IDE配置（若团队统一可去掉注释）
+.vscode/
+.idea/
+*.swp
+*.swo
