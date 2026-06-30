@@ -100,18 +100,43 @@
           @mode-change="handleModeChange"
         />
 
-        <!-- 底图选择器（悬浮在地图上的浮动工具栏） -->
+        <!-- 底图选择器（可折叠面板，默认收起） -->
         <div class="base-map-selector" v-if="mapStore.mapMode === '2d'">
-          <div
-            v-for="bm in mapStore.baseMaps"
-            :key="bm.id"
-            class="base-map-item"
-            :class="{ active: mapStore.activeBaseMap === bm.id }"
-            @click="switchBaseMap(bm.id)"
+          <button
+            class="base-map-toggle"
+            :class="{ expanded: baseMapExpanded }"
+            @click="baseMapExpanded = !baseMapExpanded"
+            title="底图切换"
           >
-            {{ bm.label }}
-          </div>
+            <svg viewBox="0 0 16 16" width="16" height="16">
+              <rect x="1" y="1" width="14" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.2"/>
+              <rect x="3" y="3" width="4" height="4" rx="0.5" fill="currentColor" opacity="0.3"/>
+              <rect x="3" y="9" width="4" height="4" rx="0.5" fill="currentColor" opacity="0.5"/>
+              <rect x="9" y="3" width="4" height="4" rx="0.5" fill="currentColor" opacity="0.5" stroke="currentColor" stroke-width="0.5"/>
+              <rect x="9" y="9" width="4" height="4" rx="0.5" fill="currentColor" opacity="0.3"/>
+            </svg>
+          </button>
+          <Transition name="slide-right">
+            <div class="base-map-list" v-show="baseMapExpanded">
+              <div
+                v-for="bm in mapStore.baseMaps"
+                :key="bm.id"
+                class="base-map-item"
+                :class="{ active: mapStore.activeBaseMap === bm.id }"
+                @click="switchBaseMap(bm.id)"
+              >
+                {{ bm.label }}
+              </div>
+            </div>
+          </Transition>
         </div>
+
+        <!-- 绘制工具栏（右侧） -->
+        <DrawingToolbar
+          v-if="mapStore.mapMode === '2d' && map2d"
+          :map="map2d"
+          class="draw-toolbar-panel"
+        />
       </main>
     </div>
   </div>
@@ -124,9 +149,10 @@ import { useMap2D } from './composables/useMap2D'
 import { useMap3D } from './composables/useMap3D'
 import LayerTree from './components/LayerTree.vue'
 import MapToggle from './components/MapToggle.vue'
+import DrawingToolbar from './components/DrawingToolbar.vue'
 
 const mapStore = useMapStore()
-const { initMap, switchBaseMap: switch2DBase, setLayerVisible, getCenter, getZoom, setView, flyToLocation, destroyMap } = useMap2D()
+const { initMap, switchBaseMap: switch2DBase, setLayerVisible, addLayerToTop, removeDynamicLayer, createOverlayAndAddToTop, getCenter, getZoom, setView, flyToLocation, destroyMap } = useMap2D()
 const { initViewer, getCenter: get3DCenter, getApproximateZoom, flyTo, destroyViewer } = useMap3D()
 
 const map2dRef = ref(null)
@@ -134,6 +160,7 @@ const map3dRef = ref(null)
 const isLoading = ref(false)
 const coordText = ref('104.00°E, 35.00°N')
 const locateMsg = ref('')
+const baseMapExpanded = ref(false)
 
 let map2d = null
 let viewer3d = null
@@ -287,9 +314,16 @@ watch(() => mapStore.layerTree, () => {
   const traverse = (nodes) => {
     for (const node of nodes) {
       if (node.type !== 'group' && node.visible !== undefined) {
-        // 仅处理底图类型的图层（overlay/terrain 暂未实现实际数据源）
+        // 底图类型：通过可见性控制
         if (node.type === 'base' || node.id.startsWith('tianditu') || node.id === 'osm' || node.id === 'arcgis') {
           setLayerVisible(map2d, node.id, node.visible)
+        } else {
+          // 非底图图层（overlay / terrain 等）：动态添加/移除，始终在最上层
+          if (node.visible) {
+            createOverlayAndAddToTop(map2d, node.id, node.url)
+          } else {
+            removeDynamicLayer(map2d, node.id)
+          }
         }
       }
       if (node.children) traverse(node.children)
@@ -512,23 +546,59 @@ onUnmounted(() => {
   opacity: 0;
 }
 
-/* ===== 底图选择器（浮动工具栏） ===== */
+/* ===== 底图选择器（可折叠面板） ===== */
 .base-map-selector {
   position: absolute;
   top: 12px;
-  right: 80px;
+  right: 12px;
+  display: flex;
+  align-items: stretch;
+  z-index: 20;
+}
+
+.base-map-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: rgba(13, 31, 60, 0.92);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(64, 150, 255, 0.2);
+  border-radius: 8px;
+  color: rgba(139, 166, 204, 0.8);
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.base-map-toggle:hover {
+  color: #91caff;
+  border-color: rgba(64, 150, 255, 0.35);
+  background: rgba(64, 150, 255, 0.1);
+}
+
+.base-map-toggle.expanded {
+  border-radius: 8px 0 0 8px;
+  border-right-color: transparent;
+  color: #4096FF;
+  background: rgba(64, 150, 255, 0.12);
+}
+
+.base-map-list {
   display: flex;
   gap: 4px;
   background: rgba(13, 31, 60, 0.92);
   backdrop-filter: blur(8px);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border: 1px solid rgba(64, 150, 255, 0.15);
+  border-left: none;
+  border-radius: 0 8px 8px 0;
   padding: 4px;
-  z-index: 10;
+  white-space: nowrap;
 }
 
 .base-map-item {
-  padding: 5px 12px;
+  padding: 6px 12px;
   font-size: 12px;
   color: var(--text-secondary);
   border-radius: 6px;
@@ -546,5 +616,24 @@ onUnmounted(() => {
 .base-map-item.active {
   color: #fff;
   background: var(--tech-blue-700);
+}
+
+/* 底图面板展开/收起动画 */
+.slide-right-enter-active,
+.slide-right-leave-active {
+  transition: all 0.25s ease;
+}
+
+.slide-right-enter-from,
+.slide-right-leave-to {
+  opacity: 0;
+  transform: translateX(-8px);
+}
+
+/* ===== 绘制工具栏定位 ===== */
+.draw-toolbar-panel {
+  position: absolute;
+  top: 60px;
+  right: 12px;
 }
 </style>

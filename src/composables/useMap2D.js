@@ -6,7 +6,8 @@ import OSM from 'ol/source/OSM'
 import XYZ from 'ol/source/XYZ'
 import Projection from 'ol/proj/Projection'
 import { addProjection, addCoordinateTransforms, getTransform, fromLonLat, toLonLat } from 'ol/proj'
-import { defaults as defaultControls } from 'ol/control'
+import Zoom from 'ol/control/Zoom'
+import Attribution from 'ol/control/Attribution'
 
 // ====================== 注册 EPSG:4490 坐标系 (CGCS2000) ======================
 // 无需外部 proj4 库，通过坐标变换链实现 EPSG:4490 ↔ EPSG:4326 ↔ EPSG:3857
@@ -87,11 +88,10 @@ export function useMap2D() {
         zoom,
         projection: 'EPSG:3857'
       }),
-      controls: defaultControls({
-        zoom: true,
-        rotate: false,
-        attribution: true
-      })
+      controls: [
+        new Zoom(),
+        new Attribution()
+      ]
     })
 
     // 设置初始底图
@@ -140,6 +140,55 @@ export function useMap2D() {
         }
       }
     })
+  }
+
+  // 动态图层注册表（用于 overlay / terrain 等非底图图层）
+  const dynamicLayers = new Map()
+
+  /**
+   * 添加动态图层到地图最上层（覆盖层/地形层等非底图图层）
+   * @param {ol/Map} map
+   * @param {string} layerId
+   * @param {ol/layer/Base} layer
+   */
+  function addLayerToTop(map, layerId, layer) {
+    // 如果已存在同 ID 图层，先移除旧的
+    removeDynamicLayer(map, layerId)
+    // 插入到集合末尾（渲染时在最上层）
+    map.getLayers().push(layer)
+    dynamicLayers.set(layerId, layer)
+  }
+
+  /**
+   * 移除动态图层
+   * @param {ol/Map} map
+   * @param {string} layerId
+   */
+  function removeDynamicLayer(map, layerId) {
+    const layer = dynamicLayers.get(layerId)
+    if (layer) {
+      map.removeLayer(layer)
+      dynamicLayers.delete(layerId)
+    }
+  }
+
+  /**
+   * 为覆盖层/地形层等非底图图层创建 TileLayer 并添加到地图最上层
+   * @param {ol/Map} map
+   * @param {string} layerId
+   * @param {string} url - XYZ 瓦片 URL 模板
+   */
+  function createOverlayAndAddToTop(map, layerId, url) {
+    if (!url) return
+    const layer = new TileLayer({
+      source: new XYZ({
+        url,
+        crossOrigin: 'anonymous'
+      }),
+      visible: true,
+      properties: { layerId }
+    })
+    addLayerToTop(map, layerId, layer)
   }
 
   function getCenter(map) {
@@ -206,6 +255,9 @@ export function useMap2D() {
     initMap,
     switchBaseMap,
     setLayerVisible,
+    addLayerToTop,
+    removeDynamicLayer,
+    createOverlayAndAddToTop,
     getCenter,
     getZoom,
     setView,

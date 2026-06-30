@@ -44,10 +44,19 @@
                 <path d="M2 2.5h4l1.5 1.5H12a1 1 0 011 1V11a1 1 0 01-1 1H2a1 1 0 01-1-1V3.5a1 1 0 011-1z"
                   fill="none" stroke="#4096FF" stroke-width="1" />
               </svg>
-              <!-- 底图 -->
+              <!-- 底图 - 矢量 -->
+              <svg v-else-if="data.type === 'base' && (data.id === 'osm' || data.id === 'tianditu_vec')" viewBox="0 0 14 14" width="14" height="14">
+                <path d="M2 11 L5 4 L8 8 L12 2" fill="none" stroke="#69b1ff" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" />
+                <circle cx="5" cy="4" r="1.2" fill="#69b1ff" />
+                <circle cx="8" cy="8" r="1.2" fill="#69b1ff" />
+                <circle cx="12" cy="2" r="1.2" fill="#69b1ff" />
+              </svg>
+              <!-- 底图 - 影像/卫星 -->
               <svg v-else-if="data.type === 'base'" viewBox="0 0 14 14" width="14" height="14">
-                <rect x="1" y="1" width="12" height="12" rx="1" fill="none" stroke="#69b1ff" stroke-width="1" />
-                <rect x="3" y="3" width="8" height="8" rx="0.5" fill="#69b1ff" opacity="0.2" />
+                <circle cx="7" cy="7" r="3.5" fill="none" stroke="#ffa940" stroke-width="1" />
+                <ellipse cx="7" cy="7" rx="6" ry="2.5" fill="none" stroke="#ffa940" stroke-width="0.7" opacity="0.6" transform="rotate(-30 7 7)" />
+                <ellipse cx="7" cy="7" rx="6" ry="2.5" fill="none" stroke="#ffa940" stroke-width="0.7" opacity="0.6" transform="rotate(30 7 7)" />
+                <circle cx="7" cy="7" r="1.5" fill="#ffa940" opacity="0.25" />
               </svg>
               <!-- 覆盖层 -->
               <svg v-else-if="data.type === 'overlay'" viewBox="0 0 14 14" width="14" height="14">
@@ -67,14 +76,6 @@
 
             <!-- 标签 -->
             <span class="node-label">{{ data.label }}</span>
-
-            <!-- 可见性指示点 -->
-            <span
-              v-if="data.type !== 'group'"
-              class="visibility-dot"
-              :class="{ active: data.visible }"
-              :title="data.visible ? '图层已显示' : '图层已隐藏'"
-            ></span>
           </div>
         </template>
       </el-tree>
@@ -231,22 +232,6 @@ function handleCheck(data, checkState) {
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--text-secondary);
-}
-
-/* 可见性指示点（替代原来的眼睛图标） */
-.visibility-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #5a6a80;
-  flex-shrink: 0;
-  margin-right: 4px;
-  transition: background 0.3s, box-shadow 0.3s;
-}
-
-.visibility-dot.active {
-  background: #4096FF;
-  box-shadow: 0 0 6px rgba(64, 150, 255, 0.6);
 }
 
 /* 折叠图标 */
